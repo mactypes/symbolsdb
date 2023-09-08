@@ -20,15 +20,17 @@ type Symbol struct {
 	Path string
 	Kind string
 
-	Description string      // /abstract/$content
-	Type        string      // /metadata/roleHeading
-	Parent      string      // /metadata/parent/title
-	Modules     []string    // /metadata/modules
-	Platforms   []Platform  // /metadata/platforms
-	Declaration string      // /primaryContentSections/[kind=declarations]/declarations/[languages=[occ]/tokens
-	Parameters  []Parameter // /primaryContentSections/[kind=parameters]/parameters (name:/name,description:/content/0/inlineContent/$content)
-	Return      string      // /primaryContentSections/?[kind=content]/content/0/anchor=return_value ../1/inlineContent/$content
-	Deprecated  bool        // /deprecationSummary
+	Description  string            // /abstract/$content
+	Type         string            // /metadata/roleHeading
+	Parent       string            // /metadata/parent/title
+	Modules      []string          // /metadata/modules
+	Platforms    []Platform        // /metadata/platforms
+	Deprecated   bool              // /deprecationSummary
+	Declaration  string            // if there is only one declaration, its put here. otherwise under Declarations[platform]
+	Declarations map[string]string // /primaryContentSections/[kind=declarations]/declarations/[languages=[occ]/tokens (key is platform)
+	Parameters   []Parameter       // /primaryContentSections/[kind=parameters]/parameters (name:/name,description:/content/0/inlineContent/$content)
+	Return       string            // /primaryContentSections/?[kind=content]/content/0/anchor=return_value ../1/inlineContent/$content
+	InheritsFrom string            // /relationshipSections/[type=inheritsFrom]/identifiers/0
 }
 
 type Platform struct {
@@ -102,6 +104,11 @@ func inflate(symbolPath string) Symbol {
 
 	fmt.Println(metaPath)
 
+	// fix bug in constant names
+	if sym.Kind == "Constant" {
+		sym.Name = strings.Split(sym.Name, " = ")[0]
+	}
+
 	// Description
 	if abstract := findPath(doc, "/abstract"); abstract != nil {
 		sym.Description = strings.Trim(parseContent(abstract), " ")
@@ -144,16 +151,66 @@ func inflate(symbolPath string) Symbol {
 			}
 		}
 		// Declaration
+		sym.Declarations = make(map[string]string)
 		if declContent := findWithProp(content, "kind", "declarations"); declContent != nil {
-			if decl := findWithProp(findPath(declContent, "/declarations"), "languages", []any{"occ"}); decl != nil {
-				sym.Declaration = buildDeclarationFromTokens(findPath(decl, "/tokens"))
+			if decls := findPath(declContent, "/declarations"); decls != nil {
+				for _, decl := range decls.([]any) {
+					langs := findPath(decl, "/languages")
+					if langs == nil {
+						continue
+					}
+					found := false
+					for _, lang := range langs.([]any) {
+						if lang.(string) == "occ" {
+							found = true
+						}
+					}
+					if !found {
+						continue
+					}
+					declStr := buildDeclarationFromTokens(findPath(decl, "/tokens"))
+					platforms := findPath(decl, "/platforms")
+					if platforms == nil {
+						panic("platforms not found for declaration on " + sym.Path)
+					}
+					for _, platform := range platforms.([]any) {
+						platName := strings.ToLower(platform.(string))
+						sym.Declarations[platName] = declStr
+					}
+				}
 			}
+		}
+		// if all Declarations are the same, unset Declarations and set Declaration
+		decl := ""
+		same := true
+		for _, d := range sym.Declarations {
+			if decl == "" {
+				decl = d
+			} else {
+				if decl != d {
+					same = false
+					break
+				}
+			}
+		}
+		if same {
+			sym.Declarations = nil
+			sym.Declaration = decl
 		}
 	}
 
 	// Deprecated
 	if findPath(doc, "/deprecationSummary") != nil {
 		sym.Deprecated = true
+	}
+
+	// InheritsFrom
+	if sections := findPath(doc, "/relationshipsSections"); sections != nil {
+		if inheritsFrom := findWithProp(sections, "type", "inheritsFrom"); inheritsFrom != nil {
+			if id := findPath(inheritsFrom, "/identifiers/0"); id != nil {
+				sym.InheritsFrom = strings.Replace(id.(string), "doc://com.apple.documentation/documentation/", "", 1)
+			}
+		}
 	}
 
 	// sanity check declaration, unless any of these cases...
@@ -171,7 +228,7 @@ func inflate(symbolPath string) Symbol {
 			ignoreDeclaration = true
 		}
 	}
-	if sym.Kind != "Framework" && sym.Declaration == "" && !sym.Deprecated && sym.Type != "" && !ignoreDeclaration {
+	if sym.Kind != "Framework" && sym.Declaration == "" && len(sym.Declarations) == 0 && !sym.Deprecated && sym.Type != "" && !ignoreDeclaration {
 		log.Fatal("no declaration ", sym.Path, " ", sym.Kind)
 	}
 
@@ -248,17 +305,25 @@ func parsePlatforms(platforms any) (plats []Platform) {
 		return nil
 	}
 	for _, p := range platforms.([]any) {
+		current := ""
+		if cur := findPath(p, "/current"); cur != nil {
+			current = cur.(string)
+		}
 		pp := Platform{
 			Name:         findPath(p, "/name").(string),
 			IntroducedAt: findPath(p, "/introducedAt").(string),
-			Current:      findPath(p, "/current").(string),
+			Current:      current,
 		}
 		if beta := findPath(p, "/beta"); beta != nil {
 			pp.Beta = beta.(bool)
 		}
 		if deprecated := findPath(p, "/deprecated"); deprecated != nil {
 			pp.Deprecated = deprecated.(bool)
-			pp.DeprecatedAt = findPath(p, "/deprecatedAt").(string)
+			deprecatedAt := ""
+			if dep := findPath(p, "/deprecatedAt"); dep != nil {
+				deprecatedAt = dep.(string)
+			}
+			pp.DeprecatedAt = deprecatedAt
 		}
 		plats = append(plats, pp)
 	}

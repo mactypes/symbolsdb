@@ -1,6 +1,10 @@
 .DS_Store
+TODO
 /cache/docSet.db
 /cache/meta
 /cache/meta.zip
+/cache/meta.tar.gz
 /symbols
+/symbols.bak
 /symbols.zip
+/local

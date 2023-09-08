@@ -7,12 +7,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/chromedp/chromedp"
 )
@@ -25,9 +23,6 @@ type Symbol struct {
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
-	min := 0
-	max := 100
 
 	known404, err := readFileLines("./404")
 	if err != nil {
@@ -114,7 +109,6 @@ func main() {
 			}
 
 			fmt.Println(sym.Path, " => ", toTargetPath(sym.File))
-			time.Sleep(time.Duration(rand.Intn(max-min+1)+min) * time.Millisecond)
 		} else {
 			fmt.Println(sym.Path, " => ", resp.Status)
 		}

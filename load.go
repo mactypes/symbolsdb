@@ -104,14 +104,7 @@ func main() {
 
 	fmt.Println("Loading protocols...")
 	for _, s := range symbols["Protocol"] {
-		parts := strings.Split(s.Path, "/")
-		fw := parts[0]
-		name := parts[len(parts)-1]
-		dash := strings.LastIndex(s.Path, "-")
-		if dash > 0 {
-			name = s.Path[dash+1:]
-		}
-		protofile := filepath.Join(targetDir, fmt.Sprintf("%s/%s.json", fw, name))
+		protofile := filepath.Join(targetDir, fmt.Sprintf("%s.json", s.Path))
 		if _, err := os.Stat(protofile); err == nil {
 			// class exists with this name, so
 			// for now we skip it. the methods for
@@ -138,32 +131,7 @@ func main() {
 			}, s.Path) { // weird struct methods
 			continue
 		}
-		parts := strings.Split(s.Path, "/")
-		fw := parts[0]
-		iface := parts[1]
-		idash := strings.LastIndex(iface, "-")
-		if idash > 0 {
-			iface = iface[idash+1:]
-		}
-		dash := strings.LastIndex(parts[2], "-")
-		name := parts[2][dash+1:]
-		methodfile := filepath.Join(targetDir, fmt.Sprintf("%s/%s/%s.json", fw, iface, name))
-
-		ifacePath := fmt.Sprintf("%s/%s/%s.json", targetDir, fw, iface)
-		if _, err := os.Stat(ifacePath); os.IsNotExist(err) {
-			if strings.Contains(s.Path, "driverkit") {
-				// these driverkit methods are weird
-				continue
-			}
-			if fw == "appkit" {
-				if _, err := os.Stat(strings.Replace(ifacePath, "appkit", "uikit", 1)); os.IsNotExist(err) {
-					fmt.Println("LOST METHOD:", s.Path)
-					continue
-				}
-				methodfile = strings.Replace(methodfile, "appkit", "uikit", 1)
-			}
-
-		}
+		methodfile := filepath.Join(targetDir, fmt.Sprintf("%s.json", s.Path))
 
 		if err := os.MkdirAll(filepath.Dir(methodfile), 0755); err != nil {
 			log.Fatal(err)
@@ -192,10 +160,7 @@ func main() {
 			continue
 		}
 
-		parts := strings.Split(s.Path, "/")
-		fw := parts[0]
-		name := parts[len(parts)-1]
-		structfile := filepath.Join(targetDir, fmt.Sprintf("%s/%s.json", fw, name))
+		structfile := filepath.Join(targetDir, fmt.Sprintf("%s.json", s.Path))
 		if p, exists := files[structfile]; exists {
 			fmt.Println("CONFLICT:", s.Path, p)
 		}
@@ -222,39 +187,7 @@ func main() {
 			}, s.Path) { // not props, proplists ugh
 			continue
 		}
-		parts := strings.Split(s.Path, "/")
-		fw := parts[0]
-		iface := parts[1]
-		idash := strings.LastIndex(iface, "-")
-		if idash > 0 {
-			iface = iface[idash+1:]
-		}
-		dash := strings.LastIndex(parts[2], "-")
-		name := parts[2][dash+1:]
-		propfile := filepath.Join(targetDir, fmt.Sprintf("%s/%s/%s.json", fw, iface, name))
-
-		ifacePath := fmt.Sprintf("%s/%s/%s.json", targetDir, fw, iface)
-		if _, err := os.Stat(ifacePath); os.IsNotExist(err) {
-			if strings.Contains(s.Path, "driverkit") || strings.Contains(s.Path, "kernel") {
-				// fuck em
-				continue
-			}
-			if fw == "appkit" {
-				if _, err := os.Stat(strings.Replace(ifacePath, "appkit", "uikit", 1)); os.IsNotExist(err) {
-					fmt.Println("LOST PROP:", s.Path)
-					continue
-				}
-				propfile = strings.Replace(propfile, "appkit", "uikit", 1)
-			}
-			if fw == "quicklookui" {
-				if _, err := os.Stat(strings.Replace(ifacePath, "quicklookui", "quicklook", 1)); os.IsNotExist(err) {
-					fmt.Println("LOST PROP:", s.Path)
-					continue
-				}
-				propfile = strings.Replace(propfile, "quicklookui", "quicklook", 1)
-			}
-
-		}
+		propfile := filepath.Join(targetDir, fmt.Sprintf("%s.json", s.Path))
 
 		if err := os.MkdirAll(filepath.Dir(propfile), 0755); err != nil {
 			log.Fatal(err)
@@ -276,11 +209,7 @@ func main() {
 			continue
 		}
 
-		parts := strings.Split(s.Path, "/")
-		fw := parts[0]
-		dash := strings.LastIndex(s.Path, "-")
-		name := s.Path[dash+1:]
-		unionfile := filepath.Join(targetDir, fmt.Sprintf("%s/%s.json", fw, name))
+		unionfile := filepath.Join(targetDir, fmt.Sprintf("%s.json", s.Path))
 		if p, exists := files[unionfile]; exists {
 			fmt.Println("CONFLICT:", s.Path, p)
 		}
@@ -315,10 +244,7 @@ func main() {
 			continue
 		}
 
-		parts := strings.Split(s.Path, "/")
-		fw := parts[0]
-		name := parts[len(parts)-1]
-		typefile := filepath.Join(targetDir, fmt.Sprintf("%s/%s.json", fw, name))
+		typefile := filepath.Join(targetDir, fmt.Sprintf("%s.json", s.Path))
 		if p, exists := files[typefile]; exists {
 			fmt.Println("CONFLICT:", s.Path, p)
 		}
@@ -353,14 +279,7 @@ func main() {
 			continue
 		}
 
-		parts := strings.Split(s.Path, "/")
-		fw := parts[0]
-		name := parts[len(parts)-1]
-		dash := strings.LastIndex(s.Path, "-")
-		if dash > 0 {
-			name = s.Path[dash+1:]
-		}
-		enumfile := filepath.Join(targetDir, fmt.Sprintf("%s/%s.json", fw, name))
+		enumfile := filepath.Join(targetDir, fmt.Sprintf("%s.json", s.Path))
 		if p, exists := files[enumfile]; exists {
 			fmt.Println("CONFLICT:", s.Path, p)
 		}
@@ -425,10 +344,8 @@ func main() {
 			continue
 		}
 
-		parts := strings.Split(s.Path, "/")
-		fw := parts[0]
-		name := parts[len(parts)-1]
-		constfile := filepath.Join(targetDir, fmt.Sprintf("%s/%s.json", fw, name))
+		s.Name = strings.Split(s.Name, " = ")[0]
+		constfile := filepath.Join(targetDir, fmt.Sprintf("%s.json", s.Path))
 		if p, exists := files[constfile]; exists {
 			fmt.Println("CONFLICT:", s.Path, p)
 		}
@@ -459,10 +376,7 @@ func main() {
 			continue
 		}
 
-		parts := strings.Split(s.Path, "/")
-		fw := parts[0]
-		name := parts[len(parts)-1]
-		macrofile := filepath.Join(targetDir, fmt.Sprintf("%s/%s.json", fw, name))
+		macrofile := filepath.Join(targetDir, fmt.Sprintf("%s.json", s.Path))
 		if p, exists := files[macrofile]; exists {
 			fmt.Println("CONFLICT:", s.Path, p)
 		}
@@ -488,11 +402,7 @@ func main() {
 			strings.Contains(s.Name, "::") { // odd namespaced functions, not many
 			continue
 		}
-		parts := strings.Split(s.Path, "/")
-		fw := parts[0]
-		dash := strings.LastIndex(s.Path, "-")
-		name := s.Path[dash+1:]
-		fnfile := filepath.Join(targetDir, fmt.Sprintf("%s/%s.json", fw, name))
+		fnfile := filepath.Join(targetDir, fmt.Sprintf("%s.json", s.Path))
 
 		// don't care about conflicts because there's too many.
 		// look like overloaded functions, but also not important ones.
